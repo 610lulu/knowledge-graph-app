@@ -28,6 +28,13 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ data, onNodeClic
   const containerRef = useRef<HTMLDivElement>(null);
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
 
+  // 获取节点大小
+  const getNodeRadius = (node: any) => {
+    const connections = data.links.filter(l => l.source === node.id || l.target === node.id).length;
+    const baseSize = node.category === 'place' ? 35 : 20;
+    return baseSize + connections * 2;
+  };
+
   useEffect(() => {
     if (!svgRef.current || !containerRef.current) return;
 
@@ -98,7 +105,9 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ data, onNodeClic
       )
       .force('charge', d3.forceManyBody<D3Node>().strength(-400))
       .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide<D3Node>().radius(50))
+      .force('collision', d3.forceCollide<D3Node>().radius((d: any) => {
+        return getNodeRadius(d) + 10;
+      }))
       .alpha(1)
       .alphaDecay(0.02);
 
@@ -133,10 +142,7 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ data, onNodeClic
       .enter()
       .append('circle')
       .attr('class', 'node-bg')
-      .attr('r', (d: any) => {
-        const connections = data.links.filter(l => l.source === d.id || l.target === d.id).length;
-        return 20 + connections * 3;
-      })
+      .attr('r', (d: any) => getNodeRadius(d))
       .attr('fill', (d: any) => d.color || '#e8a87c')
       .attr('opacity', 0.2)
       .attr('filter', 'url(#glow)');
@@ -148,10 +154,7 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ data, onNodeClic
       .enter()
       .append('circle')
       .attr('class', 'graph-node')
-      .attr('r', (d: any) => {
-        const connections = data.links.filter(l => l.source === d.id || l.target === d.id).length;
-        return 20 + connections * 3;
-      })
+      .attr('r', (d: any) => getNodeRadius(d))
       .attr('fill', (d: any) => d.color || '#e8a87c')
       .attr('stroke', '#4a3728')
       .attr('stroke-width', 2.5)
@@ -166,10 +169,7 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ data, onNodeClic
         d3.select(this)
           .transition()
           .duration(200)
-          .attr('r', (d: any) => {
-            const connections = data.links.filter(l => l.source === d.id || l.target === d.id).length;
-            return 20 + connections * 3 + 10;
-          })
+          .attr('r', (d: any) => getNodeRadius(d) + 8)
           .attr('opacity', 1)
           .attr('stroke-width', 3);
 
@@ -195,10 +195,7 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ data, onNodeClic
         d3.select(this)
           .transition()
           .duration(200)
-          .attr('r', (d: any) => {
-            const connections = data.links.filter(l => l.source === d.id || l.target === d.id).length;
-            return 20 + connections * 3;
-          })
+          .attr('r', (d: any) => getNodeRadius(d))
           .attr('opacity', 0.9)
           .attr('stroke-width', 2.5);
 
@@ -208,12 +205,7 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ data, onNodeClic
 
         // 恢复节点
         nodes.attr('opacity', 0.9);
-      })
-      .call(d3.drag<any, any>()
-        .on('start', dragStarted)
-        .on('drag', dragged)
-        .on('end', dragEnded)
-      );
+      });
 
     // 创建标签
     const labels = labelGroup
@@ -231,24 +223,6 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ data, onNodeClic
       .text((d: any) => d.label)
       .style('pointer-events', 'none')
       .style('user-select', 'none');
-
-    // 拖拽函数
-    function dragStarted(event: any, d: any) {
-      if (!event.active) simulation.alphaTarget(0.3).restart();
-      d.fx = d.x;
-      d.fy = d.y;
-    }
-
-    function dragged(event: any, d: any) {
-      d.fx = event.x;
-      d.fy = event.y;
-    }
-
-    function dragEnded(event: any, d: any) {
-      if (!event.active) simulation.alphaTarget(0);
-      d.fx = null;
-      d.fy = null;
-    }
 
     // 更新位置
     simulation.on('tick', () => {
@@ -270,6 +244,15 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ data, onNodeClic
         .attr('x', (d: any) => d.x)
         .attr('y', (d: any) => d.y);
     });
+
+    // 让节点稳定后固定位置
+    setTimeout(() => {
+      simulation.alpha(0);
+      data.nodes.forEach((node: any) => {
+        node.fx = node.x;
+        node.fy = node.y;
+      });
+    }, 3000);
 
     // 缩放功能
     const zoom = d3.zoom<SVGSVGElement, unknown>()
